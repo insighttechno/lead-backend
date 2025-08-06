@@ -23,7 +23,7 @@ const AuditLogSchema = mongoose.Schema(
       trim: true,
       enum: [
         'User', 'Company', 'EmailTemplate', 'FromEmail', 'Keyword',
-        'Lead', 'RecipientList', 'Campaign', 'ExtractionJob', 'Auth'
+        'Lead', 'Campaign', 'ExtractionJob', 'Auth'
       ],
     },
     entityId: {

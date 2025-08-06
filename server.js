@@ -12,7 +12,6 @@ const templateRoutes = require('./routes/templateRoutes');
 const fromEmailRoutes = require('./routes/fromEmailRoutes'); // NEW
 const keywordRoutes = require('./routes/keywordRoutes');       // NEW
 const leadRoutes = require('./routes/leadRoutes');         // NEW
-const recipientListRoutes = require('./routes/recipientListRoutes'); // NEW
 const campaignRoutes = require('./routes/campaignRoutes'); // NEW
 const trackingRoutes = require('./routes/trackingRoutes'); // NEW
 const auditLogRoutes = require('./routes/auditLogRoutes'); // NEW
@@ -41,7 +40,6 @@ app.use('/api/templates', templateRoutes);
 app.use('/api/from-emails', fromEmailRoutes); // NEW
 app.use('/api/keywords', keywordRoutes);       // NEW
 app.use('/api', leadRoutes); // Lead and Extraction routes (e.g., /api/leads, /api/extract-emails) // NEW
-app.use('/api/recipient-lists', recipientListRoutes); // NEW
 app.use('/api/campaigns', campaignRoutes); // NEW
 app.use('/api', trackingRoutes); // Tracking routes (e.g., /api/track/open) // NEW (public endpoint)
 app.use('/api/audit-logs', auditLogRoutes); // NEW

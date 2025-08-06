@@ -1,17 +1,13 @@
-// workers/emailWorker.js
 const { Worker } = require('bullmq');
 const { connection } = require('../config/redis'); // Import the shared Redis connection
 const Campaign = require('../models/Campaign'); // Your Mongoose model
-const CampaignEvent = require('../models/CampaignEvent'); // Your Mongoose model
-// Placeholder for your Microsoft Graph API service
 const { sendEmailViaGraph } = require('../services/graphApiService');
 
-// Initialize the worker
 const emailWorker = new Worker(
   'sendSingleEmail1', // Must match the queue name
   async (job) => {
     console.log('init email Worker', job);
-    const { campaignId, recipientEmail, subject, body, fromEmailAddress, companyId } = job.data;
+    const { campaignId, recipientEmail, subject, body, companyId, templateId } = job.data;
     console.log(`Processing email job ${job.id} for Campaign ${campaignId} to ${recipientEmail}`);
 
     try {
@@ -23,34 +19,14 @@ const emailWorker = new Worker(
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
       // Call your Microsoft Graph API function
-      await sendEmailViaGraph(campaignId, recipientEmail, subject, body, companyId);
+      await sendEmailViaGraph(campaignId, recipientEmail, subject, body, companyId, templateId);
 
-      // Log 'Sent' event
-      await CampaignEvent.create({
-        companyId: job.data.companyId,
-        campaignId,
-        recipientEmail,
-        eventType: 'Sent',
-        timestamp: new Date(),
-      });
-
-      // // Increment emailsSent count in Campaign model
-      // await Campaign.findByIdAndUpdate(campaignId, { $inc: { emailsSent: 1 } });
+      // Increment emailsSent count in Campaign model
+      await Campaign.findByIdAndUpdate(campaignId, { $inc: { emailsSent: 1 } });
 
       console.log(`Successfully sent email for Campaign ${campaignId} to ${recipientEmail}`);
     } catch (error) {
       console.error(`Failed to send email for Campaign ${campaignId} to ${recipientEmail}:`, error);
-
-      // Log 'Failed' event
-      await CampaignEvent.create({
-        companyId: job.data.companyId,
-        campaignId,
-        recipientEmail,
-        eventType: 'Failed',
-        errorMessage: error.message,
-        timestamp: new Date(),
-      });
-
       // BullMQ will automatically retry jobs based on your queue options,
       // but re-throwing signals that this particular attempt failed.
       throw error;

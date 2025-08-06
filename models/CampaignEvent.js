@@ -18,10 +18,19 @@ const CampaignEventSchema = mongoose.Schema(
       required: true,
       lowercase: true,
     },
+    templateId: { // New field
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'EmailTemplate',
+      required: true,
+    },
     eventType: {
       type: String,
       enum: ['Sent', 'Opened', 'Clicked', 'Bounced', 'Unsubscribed', 'Failed'],
       required: true,
+    },
+    fromEmail: {
+        type: String,
+        required: true,
     },
     timestamp: {
       type: Date,

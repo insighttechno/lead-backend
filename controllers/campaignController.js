@@ -1,29 +1,12 @@
 const asyncHandler = require('express-async-handler');
 const Campaign = require('../models/Campaign');
 const Lead = require('../models/Lead');
-const FromEmail = require('../models/FromEmail');
 const EmailTemplate = require('../models/EmailTemplate');
-const { sendCampaignEmails } = require('../services/emailSendingService'); // Import the service
 const ExtractionJob = require('../models/ExtractionJob'); // Make sure this is imported
 const CampaignEvent = require('../models/CampaignEvent');
 
 // Import the emailSendingQueue
 const { emailSendingQueue } = require('../config/redis');
-
-const getExtractionJobs = asyncHandler(async (req, res) => {
-  const companyId = req.companyId; // Assuming companyId is set by middleware
-  const extractionJobs = await ExtractionJob.find({ companyId }).select('title totalEmailsExtracted'); // Only fetch necessary fields
-  res.json(extractionJobs);
-});
-
-const getEmailTemplate = asyncHandler(async (req, res) => {
-    const template = await EmailTemplate.findOne({ _id: req.params.id, companyId: req.companyId });
-    if (!template) {
-        res.status(404);
-        throw new Error('Email template not found or not accessible.');
-    }
-    res.json(template);
-});
 
 // @desc    Get dashboard campaign summary (analytics)
 // @route   GET /api/campaigns/summary
@@ -87,7 +70,7 @@ const getCampaignSummary = asyncHandler(async (req, res) => {
 // @route   GET /api/campaigns
 // @access  Private
 const getCampaigns = asyncHandler(async (req, res) => {
-  const { search, status, templateId, fromEmailId, page = 1, limit = 10 } = req.query;
+  const { search, status, templateId, page = 1, limit = 10 } = req.query;
 
   const query = { companyId: req.companyId };
   if (search) {
@@ -99,13 +82,11 @@ const getCampaigns = asyncHandler(async (req, res) => {
   if (templateId) {
     query.templateId = templateId;
   }
-  if (fromEmailId) {
-    query.fromEmailId = fromEmailId;
-  }
 
   const campaigns = await Campaign.find(query)
-    .populate('fromEmailId', 'emailAddress label') // Get sender email info
-    .populate('templateId', 'templateName') // Get template name
+    .populate([
+          { path: 'templateIds' }
+      ])
     .limit(limit * 1)
     .skip((page - 1) * limit)
     .sort({ createdAt: -1 });
@@ -129,9 +110,7 @@ const getCampaign = asyncHandler(async (req, res) => {
 
   if (campaign) { // Ensure campaign exists before populating
       campaign = await campaign.populate([
-          { path: 'templateId' },
-          { path: 'fromEmailId' },
-          { path: 'recipientListIds' }
+          { path: 'templateId' }
       ]);
   }
   res.json(campaign);
@@ -141,9 +120,9 @@ const getCampaign = asyncHandler(async (req, res) => {
 // @route   POST /api/campaigns
 // @access  Private (Admin, Lead Generation Specialist, Senior Developer)
 const createCampaign = asyncHandler(async (req, res) => {
-  const { campaignName, subjectLine, fromEmailId, templateId, extractionJobIds, scheduleType, scheduledTime, status } = req.body;
+  const { campaignName, subjectLine, templateIds, extractionJobIds, scheduleType, scheduledTime, status } = req.body;
 
-  if (!campaignName || !subjectLine || !fromEmailId || !templateId || !extractionJobIds || !Array.isArray(extractionJobIds) || extractionJobIds.length === 0) {
+  if (!campaignName || !subjectLine || !templateIds || !Array.isArray(templateIds) || templateIds.length === 0 || !extractionJobIds || !Array.isArray(extractionJobIds) || extractionJobIds.length === 0) {
     res.status(400);
     throw new Error('Please fill all required campaign fields.');
   }
@@ -154,33 +133,25 @@ const createCampaign = asyncHandler(async (req, res) => {
     throw new Error('A campaign with this name already exists for your company.');
   }
 
-  // Validate existence of FromEmail, Template, and ALL ExtractionJobs
-  const [fromEmail, template, ...extractionJobs] = await Promise.all([
-    FromEmail.findOne({ _id: fromEmailId, companyId: req.companyId }),
-    EmailTemplate.findOne({ _id: templateId, companyId: req.companyId }),
-    ...extractionJobIds.map(id => ExtractionJob.findOne({ _id: id, companyId: req.companyId })), // Map each ID to a promise
-  ]);
-
-  if (!fromEmail) throw new Error('Selected FROM email not found or not accessible.');
-  if (!template) throw new Error('Selected email template not found or not accessible.');
-  if (extractionJobs.some(job => !job)) throw new Error('One or more selected extraction jobs not found or not accessible.');
+   // Validate existence of ALL Templates and ALL ExtractionJobs
+  const templates = await EmailTemplate.find({ _id: { $in: templateIds }, companyId: req.companyId });
+  const extractionJobs = await ExtractionJob.find({ _id: { $in: extractionJobIds }, companyId: req.companyId });
+  
+  if (templates.length !== templateIds.length) {
+    throw new Error('One or more selected email templates not found or not accessible.');
+  }
+  if (extractionJobs.length !== extractionJobIds.length) {
+    throw new Error('One or more selected extraction jobs not found or not accessible.');
+  }
 
   // Calculate totalRecipients by summing up emails from all selected extraction jobs
-  let totalRecipients = 0;
-  // This aggregation below is fine for _displaying_ total potential recipients.
-  // For actual sending, you'll need to fetch the *emails* from these jobs and deduplicate.
-  for (const job of extractionJobs) {
-    if (job) { // Ensure job exists (checked above, but good for safety)
-      totalRecipients += job.totalEmailsExtracted;
-    }
-  }
+  let totalRecipients = extractionJobs.reduce((sum, job) => sum + job.totalEmailsExtracted, 0);
 
   const newCampaign = await Campaign.create({
     companyId: req.companyId,
     campaignName,
     subjectLine,
-    fromEmailId,
-    templateId,
+    templateIds,
     extractionJobIds,
     scheduleType,
     scheduledTime: scheduleType === 'Schedule' ? scheduledTime : undefined,
@@ -198,7 +169,7 @@ const createCampaign = asyncHandler(async (req, res) => {
 const updateCampaign = asyncHandler(async (req, res) => {
   // req.resource is attached by checkCompanyOwnership middleware
   const campaign = req.resource;
-  const { campaignName, subjectLine, fromEmailId, templateId, extractionJobIds, scheduleType, scheduledTime, status } = req.body;
+  const { campaignName, subjectLine, templateIds, extractionJobIds, scheduleType, scheduledTime, status } = req.body;
 
   // Prevent updates if campaign is already active/completed/failed
   if (['Active', 'Completed', 'Failed'].includes(campaign.status)) {
@@ -208,8 +179,19 @@ const updateCampaign = asyncHandler(async (req, res) => {
 
   if (campaignName) campaign.campaignName = campaignName;
   if (subjectLine) campaign.subjectLine = subjectLine;
-  if (fromEmailId) campaign.fromEmailId = fromEmailId;
-  if (templateId) campaign.templateId = templateId;
+
+   if (templateIds) { // Handle templateIds update
+    if (!Array.isArray(templateIds) || templateIds.length === 0) {
+      res.status(400);
+      throw new Error('templateIds must be a non-empty array.');
+    }
+    const templates = await EmailTemplate.find({ _id: { $in: templateIds }, companyId: req.companyId });
+    if (templates.length !== templateIds.length) {
+      res.status(400);
+      throw new Error('One or more selected email templates not found or not accessible.');
+    }
+    campaign.templateIds = templateIds;
+  }
 
   if (extractionJobIds) {
     if (!Array.isArray(extractionJobIds)) {
@@ -300,18 +282,7 @@ async function getRecipientsForCampaign(campaignId) {
     let allEmails = new Set(); // Use a Set for automatic deduplication
 
     for (const job of campaign.extractionJobIds) {
-        // Here you'd need to load the actual emails from the extraction job.
-        // This is the tricky part. ExtractionJob model has `downloadUrl`.
-        // You'd either need to:
-        // 1. Store emails directly in the ExtractionJob (not ideal for large sets)
-        // 2. Load emails from the file specified by `downloadUrl` (requires file parsing, e.g., CSV)
-        // 3. Have a separate `ExtractedEmail` model that links to `ExtractionJob`
-        //
-        // Assuming for now, a conceptual way to get emails:
-        // const jobEmails = await getEmailsFromExtractionJobSource(job); // This function needs to be implemented
-        // For demonstration, let's assume getEmailsFromExtractionJobSource returns an array of emails
-        // For actual implementation, you'd likely load a file from `downloadUrl` and parse it.
-
+        
         // Placeholder for fetching emails from the job
         const jobEmails = await fetchEmailsFromExtractionJobStorage(job._id); // A new function needed to get actual emails
         jobEmails.forEach(email => allEmails.add(email));
@@ -338,16 +309,11 @@ const sendCampaign = asyncHandler(async (req, res) => {
     throw new Error('No recipients found for this campaign.');
   }
 
-  const fromEmail = await FromEmail.findById(campaign.fromEmailId);
-  if (!fromEmail) {
+  // Fetch all templates for the campaign
+  const emailTemplates = await EmailTemplate.find({ _id: { $in: campaign.templateIds } });
+  if (emailTemplates.length === 0) {
     res.status(400);
-    throw new Error('From email address not found.');
-  }
-
-  const emailTemplate = await EmailTemplate.findById(campaign.templateId);
-  if (!emailTemplate) {
-    res.status(400);
-    throw new Error('Email template not found.');
+    throw new Error('No email templates found for this campaign.');
   }
 
   campaign.status = 'Active'; // Or 'Queued' if you want a distinct status for "in queue"
@@ -359,8 +325,11 @@ const sendCampaign = asyncHandler(async (req, res) => {
   const DELAY_PER_EMAIL = 3000; // 3 seconds
 
   for (let i = 0; i < recipientEmails.length; i++) {
-    console.log('uyiuyi');
+
     const email = recipientEmails[i];
+    // Select a random template for each email
+    const randomTemplate = emailTemplates[Math.floor(Math.random() * emailTemplates.length)];
+    
     await emailSendingQueue.add(
       'sendSingleEmail1', // Job name
       {
@@ -368,8 +337,8 @@ const sendCampaign = asyncHandler(async (req, res) => {
         companyId: campaign.companyId,
         recipientEmail: email,
         subject: campaign.subjectLine,
-        body: emailTemplate.contentHtml,
-        fromEmailAddress: fromEmail.emailAddress,
+        body: randomTemplate.contentHtml,
+        templateId: randomTemplate._id,
       },
       {
         delay: currentDelay, // Delay this specific job

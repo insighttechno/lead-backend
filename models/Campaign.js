@@ -18,16 +18,13 @@ const CampaignSchema = mongoose.Schema(
       required: [true, 'Subject line is required'],
       trim: true,
     },
-    fromEmailId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'FromEmail',
-      required: true,
-    },
-    templateId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'EmailTemplate',
-      required: true,
-    },
+    templateIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'EmailTemplate',
+        required: true,
+      },
+    ],
     extractionJobIds: [ // Changed from extractionJobId to extractionJobIds (plural)
       {
         type: mongoose.Schema.Types.ObjectId,

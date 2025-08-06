@@ -219,13 +219,6 @@ const deleteLead = asyncHandler(async (req, res) => {
   // req.resource is attached by checkCompanyOwnership for Lead
   const lead = req.resource;
 
-  // Optional: check if lead is part of active campaigns
-  // const campaignCount = await Campaign.countDocuments({ recipientListIds: { $in: [lead._id] }, status: { $in: ['Active', 'Scheduled'] } });
-  // if (campaignCount > 0) {
-  //     res.status(400);
-  //     throw new Error('Cannot delete lead associated with active campaigns.');
-  // }
-
   await lead.deleteOne();
   res.json({ message: 'Lead removed successfully' });
 });

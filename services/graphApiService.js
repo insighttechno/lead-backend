@@ -2,8 +2,8 @@ const axios = require("axios");
 const qs = require("qs");
 const path = require('path');
 const FromEmail = require("../models/FromEmail");
-const EmailLog = require('../models/EmailLog'); 
 const Company = require('../models/Company');
+const CampaignEvent = require('../models/CampaignEvent'); // Your Mongoose model
 
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
@@ -39,7 +39,7 @@ async function getAppToken(companyId) {
 }
 
 // Function to send a single email via Microsoft Graph API
-async function sendEmailViaGraph(campaignId, toEmailAddress, subject, body, companyId) {
+async function sendEmailViaGraph(campaignId, toEmailAddress, subject, body, companyId, templateId) {
 
     const accessToken = await getAppToken(companyId);
 
@@ -101,15 +101,17 @@ async function sendEmailViaGraph(campaignId, toEmailAddress, subject, body, comp
 
         // Log the successful email send
         try {
-            console.log('SDfadfsadfasd');
-            const newEmailLog = new EmailLog({
-                campaignId: campaignId,
+            const newCampaignEvent = new CampaignEvent({
+                companyId,
+                campaignId,
                 fromEmail: fromEmailAddress,
-                toEmail: toEmailAddress,
-                status: 'sent',
-                providerData: res.data,
+                recipientEmail: toEmailAddress,
+                eventType: 'sent',
+                templateId,
+                errorMessage: error.message,
+                timestamp: new Date(),
             });
-            await newEmailLog.save();
+            await newCampaignEvent.save();
             console.log('Email send logged successfully.');
         } catch (logError) {
             console.error('Failed to log email send:', logError.message);
@@ -130,15 +132,17 @@ async function sendEmailViaGraph(campaignId, toEmailAddress, subject, body, comp
 
         // Log the failed email send
         try {
-            const newEmailLog = new EmailLog({
-                campaignId: campaignId,
+            const newCampaignEvent = new CampaignEvent({
+                companyId,
+                campaignId,
                 fromEmail: fromEmailAddress,
-                toEmail: toEmailAddress,
-                status: 'failed',
-                errorDetails: error.message,
-                providerData: error.response ? error.response.data : {},
+                recipientEmail: toEmailAddress,
+                eventType: 'Failed',
+                templateId,
+                errorMessage: error.message,
+                timestamp: new Date(),
             });
-            await newEmailLog.save();
+            await newCampaignEvent.save();
             console.log('Failed email send logged successfully.');
         } catch (logError) {
             console.error('Failed to log email send error:', logError.message);
