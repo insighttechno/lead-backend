@@ -21,26 +21,13 @@ const CompanySchema = mongoose.Schema(
       default: false,
     },
     smtpConfig: {
-      host: String,
-      port: Number,
-      security: {
-        type: String,
-        enum: ['SSL/TLS', 'STARTTLS', 'None'],
-      },
-      username: String,
-      password: String, // Stored encrypted
+      tenantId: String,
+      clientId: String,
+      clientSecret: String, // Stored encrypted
     },
     apiSettings: {
       apiKey: String, // Stored encrypted
       webhookUrl: String,
-      rateLimitPerHour: {
-        type: Number,
-        default: 1000,
-      },
-      apiAccessLoggingEnabled: {
-        type: Boolean,
-        default: false,
-      },
     },
     notificationSettings: {
       campaignCompletion: { type: Boolean, default: true },
@@ -65,8 +52,8 @@ const CompanySchema = mongoose.Schema(
 
 // Pre-save hook to encrypt sensitive data
 CompanySchema.pre('save', function (next) {
-  if (this.isModified('smtpConfig.password') && this.smtpConfig.password) {
-    this.smtpConfig.password = encrypt(this.smtpConfig.password);
+  if (this.isModified('smtpConfig.clientSecret') && this.smtpConfig.clientSecret) {
+    this.smtpConfig.clientSecret = encrypt(this.smtpConfig.clientSecret);
   }
   if (this.isModified('apiSettings.apiKey') && this.apiSettings.apiKey) {
     this.apiSettings.apiKey = encrypt(this.apiSettings.apiKey);
@@ -77,8 +64,8 @@ CompanySchema.pre('save', function (next) {
 // Post-find hook to decrypt sensitive data when retrieved
 CompanySchema.post('find', function (docs) {
   docs.forEach(doc => {
-    if (doc.smtpConfig && doc.smtpConfig.password) {
-      doc.smtpConfig.password = decrypt(doc.smtpConfig.password);
+    if (doc.smtpConfig && doc.smtpConfig.clientSecret) {
+      doc.smtpConfig.clientSecret = decrypt(doc.smtpConfig.clientSecret);
     }
     if (doc.apiSettings && doc.apiSettings.apiKey) {
       doc.apiSettings.apiKey = decrypt(doc.apiSettings.apiKey);
@@ -88,14 +75,13 @@ CompanySchema.post('find', function (docs) {
 
 CompanySchema.post('findOne', function (doc) {
   if (doc) {
-    if (doc.smtpConfig && doc.smtpConfig.password) {
-      doc.smtpConfig.password = decrypt(doc.smtpConfig.password);
+    if (doc.smtpConfig && doc.smtpConfig.clientSecret) {
+      doc.smtpConfig.clientSecret = decrypt(doc.smtpConfig.clientSecret);
     }
     if (doc.apiSettings && doc.apiSettings.apiKey) {
       doc.apiSettings.apiKey = decrypt(doc.apiSettings.apiKey);
     }
   }
 });
-
 
 module.exports = mongoose.model('Company', CompanySchema);

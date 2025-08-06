@@ -16,6 +16,8 @@ const recipientListRoutes = require('./routes/recipientListRoutes'); // NEW
 const campaignRoutes = require('./routes/campaignRoutes'); // NEW
 const trackingRoutes = require('./routes/trackingRoutes'); // NEW
 const auditLogRoutes = require('./routes/auditLogRoutes'); // NEW
+const emailLogRoutes = require('./routes/emailLogRoutes');
+
 // ... other routes
 
 const app = express();
@@ -24,7 +26,10 @@ const app = express();
 connectDB();
 
 // Middleware
-app.use(cors()); // Allow cross-origin requests from your React frontend
+app.use(
+    cors()
+);
+
 app.use(express.json()); // Enable parsing JSON request bodies
 
 // Define API Routes
@@ -40,6 +45,8 @@ app.use('/api/recipient-lists', recipientListRoutes); // NEW
 app.use('/api/campaigns', campaignRoutes); // NEW
 app.use('/api', trackingRoutes); // Tracking routes (e.g., /api/track/open) // NEW (public endpoint)
 app.use('/api/audit-logs', auditLogRoutes); // NEW
+app.use('/api/emaillogs', emailLogRoutes);
+
 // ... other routes
 
 // Simple health check route

@@ -3,8 +3,9 @@ const Company = require('../models/Company');
 
 // @desc    Get company settings
 // @route   GET /api/settings
-// @access  Private (Admin/Team Lead)
+// @access  Private (Admin/Lead Generation Specialist)
 const getCompanySettings = asyncHandler(async (req, res) => {
+  
   // req.companyId is attached by authMiddleware
   const company = await Company.findById(req.companyId);
 
@@ -31,14 +32,12 @@ const updateCompanySettings = asyncHandler(async (req, res) => {
     company.timezone = req.body.timezone || company.timezone;
     company.darkThemeEnabled = req.body.darkThemeEnabled !== undefined ? req.body.darkThemeEnabled : company.darkThemeEnabled;
 
-    if (req.body.smtpConfig) {
-      company.smtpConfig.host = req.body.smtpConfig.host || company.smtpConfig.host;
-      company.smtpConfig.port = req.body.smtpConfig.port || company.smtpConfig.port;
-      company.smtpConfig.security = req.body.smtpConfig.security || company.smtpConfig.security;
-      company.smtpConfig.username = req.body.smtpConfig.username || company.smtpConfig.username;
-      // Password will be encrypted by the pre-save hook if changed
-      if (req.body.smtpConfig.password) {
-        company.smtpConfig.password = req.body.smtpConfig.password;
+     if (req.body.smtpConfig) {
+      company.smtpConfig.tenantId = req.body.smtpConfig.tenantId || company.smtpConfig.tenantId;
+      company.smtpConfig.clientId = req.body.smtpConfig.clientId || company.smtpConfig.clientId;
+      // Client Secret will be encrypted by the pre-save hook if changed
+      if (req.body.smtpConfig.clientSecret) {
+        company.smtpConfig.clientSecret = req.body.smtpConfig.clientSecret;
       }
     }
 
@@ -48,8 +47,7 @@ const updateCompanySettings = asyncHandler(async (req, res) => {
         company.apiSettings.apiKey = req.body.apiSettings.apiKey;
       }
       company.apiSettings.webhookUrl = req.body.apiSettings.webhookUrl || company.apiSettings.webhookUrl;
-      company.apiSettings.rateLimitPerHour = req.body.apiSettings.rateLimitPerHour || company.apiSettings.rateLimitPerHour;
-      company.apiSettings.apiAccessLoggingEnabled = req.body.apiSettings.apiAccessLoggingEnabled !== undefined ? req.body.apiSettings.apiAccessLoggingEnabled : company.apiSettings.apiAccessLoggingEnabled;
+      // Removed rateLimitPerHour and apiAccessLoggingEnabled from here
     }
 
     if (req.body.notificationSettings) {

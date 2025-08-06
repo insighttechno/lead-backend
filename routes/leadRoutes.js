@@ -7,6 +7,7 @@ const {
   addLead,
   updateLead,
   deleteLead,
+  getLeadsByExtractionJob
 } = require('../controllers/leadController');
 const { protect, authorize, checkCompanyOwnership } = require('../middleware/authMiddleware');
 const mongoose = require('mongoose');
@@ -27,7 +28,7 @@ router.param('id', (req, res, next, id) => {
 
 
 // Email Extraction Routes
-router.post('/extract-emails/start', protect, authorize('Admin', 'Team Lead', 'Developer'), startEmailExtraction);
+router.post('/extract-emails/start', protect, authorize('Admin', 'Lead Generation Specialist', 'Developer'), startEmailExtraction);
 router.get('/extract-emails/recent', protect, getRecentExtractions);
 router.get('/extract-emails/jobs/:jobId', protect, checkCompanyOwnership, getExtractionJobDetails);
 // router.get('/extract-emails/jobs/:jobId/download', protect, checkCompanyOwnership, downloadExtractedEmails); // Implement download logic if files are generated
@@ -35,10 +36,13 @@ router.get('/extract-emails/jobs/:jobId', protect, checkCompanyOwnership, getExt
 // Lead Management Routes
 router.route('/leads')
   .get(protect, getLeads)
-  .post(protect, authorize('Admin', 'Team Lead', 'Developer'), addLead);
+  .post(protect, authorize('Admin', 'Lead Generation Specialist', 'Developer'), addLead);
+
+  router.route('/leads/by-job/:id')
+  .get(protect, getLeadsByExtractionJob);
 
 router.route('/leads/:id')
-  .put(protect, authorize('Admin', 'Team Lead', 'Developer'), checkCompanyOwnership, updateLead)
-  .delete(protect, authorize('Admin', 'Team Lead'), checkCompanyOwnership, deleteLead);
+  .put(protect, authorize('Admin', 'Lead Generation Specialist', 'Developer'), checkCompanyOwnership, updateLead)
+  .delete(protect, authorize('Admin', 'Lead Generation Specialist'), checkCompanyOwnership, deleteLead);
 
 module.exports = router;

@@ -45,6 +45,9 @@ const LeadSchema = mongoose.Schema(
       country: String, // Country associated with extraction
       fileName: String, // For CSV uploads
     },
+    rawJson: { 
+      type: mongoose.Schema.Types.Mixed
+    },
     status: {
       type: String,
       enum: ['New', 'Verified', 'Bounced', 'Unsubscribed', 'Invalid'],
@@ -68,8 +71,5 @@ const LeadSchema = mongoose.Schema(
     timestamps: true,
   }
 );
-
-// Ensure email is unique per company for leads (prevents duplicate leads)
-LeadSchema.index({ companyId: 1, email: 1 }, { unique: true });
 
 module.exports = mongoose.model('Lead', LeadSchema);

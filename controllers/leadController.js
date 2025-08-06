@@ -4,43 +4,74 @@ const ExtractionJob = require('../models/ExtractionJob');
 const { performEmailExtraction } = require('../services/extractionService'); // Import the service
 const { emailRegex } = require('../utils/validationUtils'); // Create this utility for regex
 
-// Add a simple email regex utility if not already in utils/validationUtils.js
-// utils/validationUtils.js
-/*
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-module.exports = { emailRegex };
-*/
+// @desc    Get all leads for a specific extraction job
+// @route   GET /api/leads/by-job/:jobId
+// @access  Private
+const getLeadsByExtractionJob = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    // Find leads where the source is 'Extraction' and the specific extractionJobId matches
+    const leads = await Lead.find({
+        companyId: req.companyId,
+        'sourceDetails.extractionJobId': id,
+        source: 'Extraction'
+    }).select('email firstName lastName companyName status'); // Select only relevant fields
 
+    res.json({ leads });
+});
 
 // @desc    Start an email extraction job
 // @route   POST /api/extract-emails/start
-// @access  Private (Admin, Team Lead, Developer)
+// @access  Private (Admin, Lead Generation Specialist, Developer)
 const startEmailExtraction = asyncHandler(async (req, res) => {
-  const { keywords } = req.body;
+  const { title, keywords } = req.body;
 
-  if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
+  // Validate title
+  if (!title || typeof title !== 'string' || title.trim().length === 0) {
     res.status(400);
-    throw new Error('Please provide a list of keywords for extraction.');
+    throw new Error('Please provide a title for the extraction job.');
   }
+
+  // Validate keywords: now expecting a single string keyword
+  if (!keywords || typeof keywords !== 'string' || keywords.trim().length === 0) {
+    res.status(400);
+    throw new Error('Please provide a single keyword for extraction.');
+  }
+
+  // Convert the single keyword string into an array for the schema
+  const keywordsArray = [keywords.trim()];
 
   // Create an extraction job entry
   const extractionJob = await ExtractionJob.create({
     companyId: req.companyId,
-    keywordsUsed: keywords,
+    title: title,
+    keywordsUsed: keywordsArray,
     extractedBy: req.user._id,
     status: 'Pending',
   });
 
-  // Ideally, queue this job to a background worker
-  // Example: someJobQueue.add('extractEmails', { jobId: extractionJob._id, companyId: req.companyId, keywords: keywords, extractedByUserId: req.user._id });
-  // For now, we'll just call the service directly (blocking in real app, non-blocking for demo)
-  performEmailExtraction(extractionJob._id, req.companyId, keywords, req.user._id)
-    .catch(err => console.error(`Failed to initiate extraction job ${extractionJob._id}:`, err)); // Handle errors in job initiation
+  // Await the extraction service call to get the result
+  // This makes the API call blocking until the extraction and saving are complete
+  try {
+    const { totalExtracted, totalVerified } = await performEmailExtraction(
+      extractionJob._id,
+      req.companyId,
+      keywordsArray,
+      req.user._id
+    );
 
-  res.status(202).json({
-    message: 'Email extraction started. Check recent extractions for status updates.',
-    jobId: extractionJob._id,
-  });
+    res.status(202).json({
+      message: 'Email extraction started and completed successfully!',
+      jobId: extractionJob._id,
+      totalEmailsExtracted: totalExtracted, // Return the actual counts
+      emailsVerified: totalVerified,       // Return the actual counts
+    });
+  } catch (err) {
+    // If performEmailExtraction fails, it will set the job status to 'Failed' internally.
+    // Here, we just return an error to the client.
+    console.error(`Error during email extraction for job ${extractionJob._id}:`, err);
+    res.status(500); // Or 400 depending on the type of error
+    throw new Error(`Failed to complete email extraction: ${err.message}`);
+  }
 });
 
 // @desc    Get recent extraction jobs for the company
@@ -122,7 +153,7 @@ const getLeads = asyncHandler(async (req, res) => {
 
 // @desc    Add a single lead manually
 // @route   POST /api/leads
-// @access  Private (Admin, Team Lead, Developer)
+// @access  Private (Admin, Lead Generation Specialist, Developer)
 const addLead = asyncHandler(async (req, res) => {
   const { email, firstName, lastName, phone, companyName, tags } = req.body;
 
@@ -155,7 +186,7 @@ const addLead = asyncHandler(async (req, res) => {
 
 // @desc    Update a lead
 // @route   PUT /api/leads/:id
-// @access  Private (Admin, Team Lead, Developer)
+// @access  Private (Admin, Lead Generation Specialist, Developer)
 const updateLead = asyncHandler(async (req, res) => {
   // req.resource is attached by checkCompanyOwnership for Lead
   const lead = req.resource;
@@ -183,7 +214,7 @@ const updateLead = asyncHandler(async (req, res) => {
 
 // @desc    Delete a lead
 // @route   DELETE /api/leads/:id
-// @access  Private (Admin, Team Lead)
+// @access  Private (Admin, Lead Generation Specialist)
 const deleteLead = asyncHandler(async (req, res) => {
   // req.resource is attached by checkCompanyOwnership for Lead
   const lead = req.resource;
@@ -207,4 +238,5 @@ module.exports = {
   addLead,
   updateLead,
   deleteLead,
+  getLeadsByExtractionJob
 };

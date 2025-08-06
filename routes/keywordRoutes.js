@@ -19,11 +19,11 @@ router.param('id', (req, res, next, id) => {
 
 router.route('/')
   .get(protect, getKeywords)
-  .post(protect, authorize('Admin', 'Team Lead', 'Developer', 'Senior Developer'), addKeyword);
+  .post(protect, authorize('Admin', 'Lead Generation Specialist', 'Developer', 'Senior Developer'), addKeyword);
 
 router.route('/:id')
-  .put(protect, authorize('Admin', 'Team Lead', 'Developer', 'Senior Developer'), checkCompanyOwnership, updateKeyword)
-  .delete(protect, authorize('Admin', 'Team Lead'), checkCompanyOwnership, deleteKeyword);
+  .put(protect, authorize('Admin', 'Lead Generation Specialist', 'Developer', 'Senior Developer'), checkCompanyOwnership, updateKeyword)
+  .delete(protect, authorize('Admin', 'Lead Generation Specialist'), checkCompanyOwnership, deleteKeyword);
 
 router.get('/export-csv', protect, exportKeywordsToCsv); // <-- Add this route
 

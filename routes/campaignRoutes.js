@@ -28,17 +28,17 @@ router.get('/summary', protect, getCampaignSummary); // Dashboard summary
 
 router.route('/')
   .get(protect, getCampaigns)
-  .post(protect, authorize('Admin', 'Team Lead', 'Senior Developer'), createCampaign);
+  .post(protect, authorize('Admin', 'Lead Generation Specialist', 'Senior Developer'), createCampaign);
 
 router.route('/:id')
   .get(protect, checkCompanyOwnership, getCampaign)
-  .put(protect, authorize('Admin', 'Team Lead', 'Senior Developer'), checkCompanyOwnership, updateCampaign)
-  .delete(protect, authorize('Admin', 'Team Lead'), checkCompanyOwnership, deleteCampaign);
+  .put(protect, authorize('Admin', 'Lead Generation Specialist', 'Senior Developer'), checkCompanyOwnership, updateCampaign)
+  .delete(protect, authorize('Admin', 'Lead Generation Specialist'), checkCompanyOwnership, deleteCampaign);
 
-router.post('/:id/send', protect, authorize('Admin', 'Team Lead', 'Senior Developer'), checkCompanyOwnership, sendCampaign);
-router.post('/:id/pause', protect, authorize('Admin', 'Team Lead'), checkCompanyOwnership, pauseCampaign);
-router.post('/:id/resume', protect, authorize('Admin', 'Team Lead'), checkCompanyOwnership, resumeCampaign);
-router.post('/:id/cancel', protect, authorize('Admin', 'Team Lead'), checkCompanyOwnership, cancelCampaign);
+router.post('/:id/send', protect, authorize('Admin', 'Lead Generation Specialist', 'Senior Developer'), checkCompanyOwnership, sendCampaign);
+router.post('/:id/pause', protect, authorize('Admin', 'Lead Generation Specialist'), checkCompanyOwnership, pauseCampaign);
+router.post('/:id/resume', protect, authorize('Admin', 'Lead Generation Specialist'), checkCompanyOwnership, resumeCampaign);
+router.post('/:id/cancel', protect, authorize('Admin', 'Lead Generation Specialist'), checkCompanyOwnership, cancelCampaign);
 
 // New Reporting Routes for Campaigns
 router.get('/:id/analytics', protect, checkCompanyOwnership, getCampaignAnalytics); // NEW

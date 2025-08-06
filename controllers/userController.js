@@ -86,7 +86,7 @@ const changePassword = asyncHandler(async (req, res) => {
 
 // @desc    Get all team members for the company
 // @route   GET /api/teams
-// @access  Private (Admin, Team Lead)
+// @access  Private (Admin, Lead Generation Specialist)
 const getTeamMembers = asyncHandler(async (req, res) => {
   const { search, status, role, page = 1, limit = 10 } = req.query;
 
@@ -123,16 +123,16 @@ const getTeamMembers = asyncHandler(async (req, res) => {
 
 // @desc    Add a new team member
 // @route   POST /api/teams
-// @access  Private (Admin, Team Lead)
+// @access  Private (Admin, Lead Generation Specialist)
 const addTeamMember = asyncHandler(async (req, res) => {
-  const { firstName, lastName, email, role, department } = req.body;
+  const { firstName, lastName, email, role, department, password } = req.body;
 
   if (!firstName || !lastName || !email || !role) {
     res.status(400);
     throw new Error('Please enter first name, last name, email, and role');
   }
 
-  if (!['Admin', 'Team Lead', 'Developer', 'Senior Developer'].includes(role)) {
+  if (!['Lead Generation Specialist'].includes(role)) {
     res.status(400);
     throw new Error('Invalid role specified');
   }
@@ -143,14 +143,11 @@ const addTeamMember = asyncHandler(async (req, res) => {
     throw new Error('A user with this email already exists in your company');
   }
 
-  // Generate a temporary password (and ideally, email it to the user)
-  const tempPassword = Math.random().toString(36).slice(-10); // Simple random string
-
   const newUser = await User.create({
     firstName,
     lastName,
     email,
-    password: tempPassword, // Will be hashed by pre-save hook
+    password,
     companyId: req.companyId,
     role,
     department,
@@ -162,7 +159,7 @@ const addTeamMember = asyncHandler(async (req, res) => {
     // In a real application, you would send an email with a password reset link
     // or instructions to set their password using the temporary one.
     // For now, let's just log it.
-    console.log(`New user "${newUser.email}" added. Temporary password: ${tempPassword}`);
+    console.log(`New user "${newUser.email}" added. Temporary password: ${password}`);
     // You could use Nodemailer here to send an invite email:
     // const transporter = nodemailer.createTransport(company.smtpConfig); // Use company's SMTP
     // await transporter.sendMail({ from: 'no-reply@leadigniter.com', to: newUser.email, subject: 'Welcome to LeadIgniter!', html: `<p>Your temporary password is: ${tempPassword}. Please login and change it.</p>` });
@@ -188,7 +185,7 @@ const addTeamMember = asyncHandler(async (req, res) => {
 
 // @desc    Update a team member's details
 // @route   PUT /api/teams/:id
-// @access  Private (Admin, Team Lead)
+// @access  Private (Admin, Lead Generation Specialist)
 const updateTeamMember = asyncHandler(async (req, res) => {
   // req.resource is attached by checkCompanyOwnership middleware for the User model
   const user = req.resource;

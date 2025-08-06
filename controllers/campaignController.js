@@ -3,8 +3,27 @@ const Campaign = require('../models/Campaign');
 const Lead = require('../models/Lead');
 const FromEmail = require('../models/FromEmail');
 const EmailTemplate = require('../models/EmailTemplate');
-const RecipientList = require('../models/RecipientList');
 const { sendCampaignEmails } = require('../services/emailSendingService'); // Import the service
+const ExtractionJob = require('../models/ExtractionJob'); // Make sure this is imported
+const CampaignEvent = require('../models/CampaignEvent');
+
+// Import the emailSendingQueue
+const { emailSendingQueue } = require('../config/redis');
+
+const getExtractionJobs = asyncHandler(async (req, res) => {
+  const companyId = req.companyId; // Assuming companyId is set by middleware
+  const extractionJobs = await ExtractionJob.find({ companyId }).select('title totalEmailsExtracted'); // Only fetch necessary fields
+  res.json(extractionJobs);
+});
+
+const getEmailTemplate = asyncHandler(async (req, res) => {
+    const template = await EmailTemplate.findOne({ _id: req.params.id, companyId: req.companyId });
+    if (!template) {
+        res.status(404);
+        throw new Error('Email template not found or not accessible.');
+    }
+    res.json(template);
+});
 
 // @desc    Get dashboard campaign summary (analytics)
 // @route   GET /api/campaigns/summary
@@ -120,11 +139,11 @@ const getCampaign = asyncHandler(async (req, res) => {
 
 // @desc    Create new campaign
 // @route   POST /api/campaigns
-// @access  Private (Admin, Team Lead, Senior Developer)
+// @access  Private (Admin, Lead Generation Specialist, Senior Developer)
 const createCampaign = asyncHandler(async (req, res) => {
-  const { campaignName, subjectLine, fromEmailId, templateId, recipientListIds, scheduleType, scheduledTime, status } = req.body;
+  const { campaignName, subjectLine, fromEmailId, templateId, extractionJobIds, scheduleType, scheduledTime, status } = req.body;
 
-  if (!campaignName || !subjectLine || !fromEmailId || !templateId || !recipientListIds || !Array.isArray(recipientListIds) || recipientListIds.length === 0) {
+  if (!campaignName || !subjectLine || !fromEmailId || !templateId || !extractionJobIds || !Array.isArray(extractionJobIds) || extractionJobIds.length === 0) {
     res.status(400);
     throw new Error('Please fill all required campaign fields.');
   }
@@ -135,23 +154,26 @@ const createCampaign = asyncHandler(async (req, res) => {
     throw new Error('A campaign with this name already exists for your company.');
   }
 
-  // Validate existence of FromEmail, Template, RecipientLists
-  const [fromEmail, template, lists] = await Promise.all([
+  // Validate existence of FromEmail, Template, and ALL ExtractionJobs
+  const [fromEmail, template, ...extractionJobs] = await Promise.all([
     FromEmail.findOne({ _id: fromEmailId, companyId: req.companyId }),
     EmailTemplate.findOne({ _id: templateId, companyId: req.companyId }),
-    RecipientList.find({ _id: { $in: recipientListIds }, companyId: req.companyId }),
+    ...extractionJobIds.map(id => ExtractionJob.findOne({ _id: id, companyId: req.companyId })), // Map each ID to a promise
   ]);
 
   if (!fromEmail) throw new Error('Selected FROM email not found or not accessible.');
   if (!template) throw new Error('Selected email template not found or not accessible.');
-  if (lists.length !== recipientListIds.length) throw new Error('One or more recipient lists not found or not accessible.');
+  if (extractionJobs.some(job => !job)) throw new Error('One or more selected extraction jobs not found or not accessible.');
 
-  // Calculate total recipients
+  // Calculate totalRecipients by summing up emails from all selected extraction jobs
   let totalRecipients = 0;
-  for (const list of lists) {
-    totalRecipients += list.contacts.length; // Summing up contact counts from all lists
+  // This aggregation below is fine for _displaying_ total potential recipients.
+  // For actual sending, you'll need to fetch the *emails* from these jobs and deduplicate.
+  for (const job of extractionJobs) {
+    if (job) { // Ensure job exists (checked above, but good for safety)
+      totalRecipients += job.totalEmailsExtracted;
+    }
   }
-
 
   const newCampaign = await Campaign.create({
     companyId: req.companyId,
@@ -159,7 +181,7 @@ const createCampaign = asyncHandler(async (req, res) => {
     subjectLine,
     fromEmailId,
     templateId,
-    recipientListIds,
+    extractionJobIds,
     scheduleType,
     scheduledTime: scheduleType === 'Schedule' ? scheduledTime : undefined,
     status: status || 'Draft',
@@ -172,11 +194,11 @@ const createCampaign = asyncHandler(async (req, res) => {
 
 // @desc    Update campaign
 // @route   PUT /api/campaigns/:id
-// @access  Private (Admin, Team Lead, Senior Developer)
+// @access  Private (Admin, Lead Generation Specialist, Senior Developer)
 const updateCampaign = asyncHandler(async (req, res) => {
   // req.resource is attached by checkCompanyOwnership middleware
   const campaign = req.resource;
-  const { campaignName, subjectLine, fromEmailId, templateId, recipientListIds, scheduleType, scheduledTime, status } = req.body;
+  const { campaignName, subjectLine, fromEmailId, templateId, extractionJobIds, scheduleType, scheduledTime, status } = req.body;
 
   // Prevent updates if campaign is already active/completed/failed
   if (['Active', 'Completed', 'Failed'].includes(campaign.status)) {
@@ -188,21 +210,31 @@ const updateCampaign = asyncHandler(async (req, res) => {
   if (subjectLine) campaign.subjectLine = subjectLine;
   if (fromEmailId) campaign.fromEmailId = fromEmailId;
   if (templateId) campaign.templateId = templateId;
-  if (recipientListIds) {
-    // Validate recipient lists if updated
-    const lists = await RecipientList.find({ _id: { $in: recipientListIds }, companyId: req.companyId });
-    if (lists.length !== recipientListIds.length) {
-      res.status(400);
-      throw new Error('One or more recipient lists not found or not accessible.');
+
+  if (extractionJobIds) {
+    if (!Array.isArray(extractionJobIds)) {
+        res.status(400);
+        throw new Error('extractionJobIds must be an array.');
     }
-    campaign.recipientListIds = recipientListIds;
+    // Validate all incoming extractionJobIds
+    const jobs = await Promise.all(extractionJobIds.map(id => ExtractionJob.findOne({ _id: id, companyId: req.companyId })));
+    if (jobs.some(job => !job)) {
+        res.status(400);
+        throw new Error('One or more selected extraction jobs not found or not accessible.');
+    }
+
+    campaign.extractionJobIds = extractionJobIds; // Update the array
+
     // Recalculate totalRecipients
-    let totalRecipients = 0;
-    for (const list of lists) {
-      totalRecipients += list.contacts.length;
+    let newTotalRecipients = 0;
+    for (const job of jobs) {
+      if (job) {
+        newTotalRecipients += job.totalEmailsExtracted;
+      }
     }
-    campaign.totalRecipients = totalRecipients;
+    campaign.totalRecipients = newTotalRecipients;
   }
+
   if (scheduleType) campaign.scheduleType = scheduleType;
   campaign.scheduledTime = scheduleType === 'Schedule' ? scheduledTime : undefined;
   if (status) campaign.status = status; // Can transition from Draft to Scheduled, or Paused to Active
@@ -213,7 +245,7 @@ const updateCampaign = asyncHandler(async (req, res) => {
 
 // @desc    Delete campaign
 // @route   DELETE /api/campaigns/:id
-// @access  Private (Admin, Team Lead)
+// @access  Private (Admin, Lead Generation Specialist)
 const deleteCampaign = asyncHandler(async (req, res) => {
   // req.resource is attached by checkCompanyOwnership middleware
   const campaign = req.resource;
@@ -231,10 +263,67 @@ const deleteCampaign = asyncHandler(async (req, res) => {
   res.json({ message: 'Campaign removed successfully' });
 });
 
+async function fetchEmailsFromExtractionJobStorage(extractionJobId) {
+    if (!extractionJobId) {
+        throw new Error('Extraction Job ID is required to fetch leads.');
+    }
+
+    try {
+        // Find all leads that are associated with this extraction job
+        const leads = await Lead.find({ 'sourceDetails.extractionJobId': extractionJobId });
+
+        if (leads.length === 0) {
+            return []; // No leads found for this extraction job
+        }
+
+        // Extract unique emails from the found leads
+        const uniqueEmails = new Set();
+        leads.forEach(lead => {
+            if (lead.email) {
+                uniqueEmails.add(lead.email.toLowerCase().trim());
+            }
+        });
+
+        return Array.from(uniqueEmails);
+    } catch (error) {
+        console.error(`Failed to fetch leads for extraction job ${extractionJobId}:`, error);
+        throw new Error(`Error retrieving emails from leads for extraction job: ${error.message}`);
+    }
+}
+
+async function getRecipientsForCampaign(campaignId) {
+    const campaign = await Campaign.findById(campaignId).populate('extractionJobIds'); // Populate the jobs
+    if (!campaign) {
+        throw new Error('Campaign not found.');
+    }
+
+    let allEmails = new Set(); // Use a Set for automatic deduplication
+
+    for (const job of campaign.extractionJobIds) {
+        // Here you'd need to load the actual emails from the extraction job.
+        // This is the tricky part. ExtractionJob model has `downloadUrl`.
+        // You'd either need to:
+        // 1. Store emails directly in the ExtractionJob (not ideal for large sets)
+        // 2. Load emails from the file specified by `downloadUrl` (requires file parsing, e.g., CSV)
+        // 3. Have a separate `ExtractedEmail` model that links to `ExtractionJob`
+        //
+        // Assuming for now, a conceptual way to get emails:
+        // const jobEmails = await getEmailsFromExtractionJobSource(job); // This function needs to be implemented
+        // For demonstration, let's assume getEmailsFromExtractionJobSource returns an array of emails
+        // For actual implementation, you'd likely load a file from `downloadUrl` and parse it.
+
+        // Placeholder for fetching emails from the job
+        const jobEmails = await fetchEmailsFromExtractionJobStorage(job._id); // A new function needed to get actual emails
+        jobEmails.forEach(email => allEmails.add(email));
+    }
+    return Array.from(allEmails); // Return a unique list of emails
+}
+
 // @desc    Send campaign (initiates the sending process)
 // @route   POST /api/campaigns/:id/send
-// @access  Private (Admin, Team Lead, Senior Developer)
+// @access  Private (Admin, Lead Generation Specialist, Senior Developer)
 const sendCampaign = asyncHandler(async (req, res) => {
+  console.log('send API started');
   const campaign = req.resource; // From checkCompanyOwnership middleware
 
   // Ensure campaign is in a state that can be sent
@@ -243,25 +332,60 @@ const sendCampaign = asyncHandler(async (req, res) => {
     throw new Error(`Campaign is already in '${campaign.status}' status. Cannot send.`);
   }
 
-  // Update campaign status to indicate sending initiated
-  campaign.status = 'Scheduled'; // Or 'Active' if sending immediately
+  const recipientEmails = await getRecipientsForCampaign(campaign._id);
+  if (recipientEmails.length === 0) {
+    res.status(400);
+    throw new Error('No recipients found for this campaign.');
+  }
+
+  const fromEmail = await FromEmail.findById(campaign.fromEmailId);
+  if (!fromEmail) {
+    res.status(400);
+    throw new Error('From email address not found.');
+  }
+
+  const emailTemplate = await EmailTemplate.findById(campaign.templateId);
+  if (!emailTemplate) {
+    res.status(400);
+    throw new Error('Email template not found.');
+  }
+
+  campaign.status = 'Active'; // Or 'Queued' if you want a distinct status for "in queue"
+  campaign.totalRecipients = recipientEmails.length;
   await campaign.save();
+  console.log('recipientEmails',recipientEmails);
+  // Add individual email sending jobs to the queue with a delay
+  let currentDelay = 0;
+  const DELAY_PER_EMAIL = 3000; // 3 seconds
 
-  // IMPORTANT: Queue the actual sending process to a background job system
-  // Example for a job queue (e.g., BullMQ, Agenda.js):
-  // await emailQueue.add('sendCampaign', { campaignId: campaign._id });
-
-  // For this example, we'll directly call the service (which simulates async work)
-  // In production, this would be a separate worker process to avoid blocking
-  sendCampaignEmails(campaign._id)
-    .catch(err => console.error(`Failed to initiate campaign sending for ${campaign._id}:`, err));
-
+  for (let i = 0; i < recipientEmails.length; i++) {
+    console.log('uyiuyi');
+    const email = recipientEmails[i];
+    await emailSendingQueue.add(
+      'sendSingleEmail1', // Job name
+      {
+        campaignId: campaign._id,
+        companyId: campaign.companyId,
+        recipientEmail: email,
+        subject: campaign.subjectLine,
+        body: emailTemplate.contentHtml,
+        fromEmailAddress: fromEmail.emailAddress,
+      },
+      {
+        delay: currentDelay, // Delay this specific job
+        // You can add more options here, e.g., attempts for retries:
+        // attempts: 3,
+        // backoff: { type: 'exponential', delay: 5000 },
+      }
+    );
+    currentDelay += DELAY_PER_EMAIL; // Increment delay for the next email
+  }
   res.json({ message: 'Campaign sending initiated. Check campaign status for updates.', campaignId: campaign._id });
 });
 
 // @desc    Pause a running campaign
 // @route   POST /api/campaigns/:id/pause
-// @access  Private (Admin, Team Lead)
+// @access  Private (Admin, Lead Generation Specialist)
 const pauseCampaign = asyncHandler(async (req, res) => {
   const campaign = req.resource;
 
@@ -279,7 +403,7 @@ const pauseCampaign = asyncHandler(async (req, res) => {
 
 // @desc    Resume a paused campaign
 // @route   POST /api/campaigns/:id/resume
-// @access  Private (Admin, Team Lead)
+// @access  Private (Admin, Lead Generation Specialist)
 const resumeCampaign = asyncHandler(async (req, res) => {
   const campaign = req.resource;
 
@@ -297,7 +421,7 @@ const resumeCampaign = asyncHandler(async (req, res) => {
 
 // @desc    Cancel a campaign (from Scheduled or Draft state)
 // @route   POST /api/campaigns/:id/cancel
-// @access  Private (Admin, Team Lead)
+// @access  Private (Admin, Lead Generation Specialist)
 const cancelCampaign = asyncHandler(async (req, res) => {
   const campaign = req.resource;
 

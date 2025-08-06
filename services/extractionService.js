@@ -3,6 +3,7 @@
 const Lead = require('../models/Lead');
 const ExtractionJob = require('../models/ExtractionJob');
 const { emailRegex } = require('../utils/validationUtils'); // A utility for basic email validation
+const { getEmailsFromSerpAPI } = require('../services/serpApiService');
 
 // This function simulates email extraction
 // In a real application, this would involve web scraping libraries (e.g., Puppeteer, Cheerio)
@@ -22,23 +23,15 @@ const performEmailExtraction = async (jobId, companyId, keywords, extractedByUse
 
     let extractedCount = 0;
     const emailsToSave = [];
-    const simulatedDelay = 5000; // Simulate work being done
 
     try {
-        // --- SIMULATED EXTRACTION LOGIC ---
-        // Replace this with actual web scraping or API calls
-        await new Promise(resolve => setTimeout(resolve, simulatedDelay)); // Simulate async work
-
-        const simulatedEmails = [
-            'john.doe@example.com', 'jane.smith@another.org', 'invalid-email',
-            'contact@company-a.com', 'info@company-b.net', 'sales@company-a.com',
-            'support@website.com', 'webmaster@domain.xyz', 'test@test.com'
-        ];
 
         for (const keyword of keywords) {
-            simulatedEmails.forEach(email => {
-                const uniqueEmail = `${email.split('@')[0]}+${keyword.replace(/\s/g, '')}@${email.split('@')[1]}`; // Make emails "unique" per keyword for simulation
-                if (emailRegex.test(uniqueEmail)) { // Basic validation
+            const serpApiResult = await getEmailsFromSerpAPI(keyword, companyId);
+            const emails = serpApiResult.emails;
+            emails.forEach(emailObject => {
+                const uniqueEmail = emailObject.email;
+                if (emailRegex.test(uniqueEmail)) {
                     emailsToSave.push({
                         companyId,
                         email: uniqueEmail,
@@ -46,9 +39,10 @@ const performEmailExtraction = async (jobId, companyId, keywords, extractedByUse
                         sourceDetails: {
                             extractionJobId: jobId,
                             keyword: keyword,
-                            country: 'Simulated Country' // Can be determined by scraper
+                            country: 'Determined by SerpAPI search' // Can be determined by scraper
                         },
-                        createdBy: extractedByUserId
+                        createdBy: extractedByUserId,
+                        rawJson: emailObject.rawSource // Add the raw data here
                     });
                     extractedCount++;
                 }
@@ -76,8 +70,9 @@ const performEmailExtraction = async (jobId, companyId, keywords, extractedByUse
         // In a real app, you might generate a CSV file here and set job.downloadUrl
         // job.downloadUrl = `/downloads/extraction-job-${jobId}.csv`;
         await job.save();
-
+        let emailsVerified = job.emailsVerified;
         console.log(`[Extraction Service] Job ${jobId} completed. Extracted: ${extractedCount}, Verified: ${job.emailsVerified}`);
+        return { totalExtracted: extractedCount, totalVerified: emailsVerified };
 
     } catch (error) {
         console.error(`[Extraction Service] Job ${jobId} failed:`, error);

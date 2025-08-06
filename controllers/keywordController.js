@@ -39,7 +39,7 @@ const getKeywords = asyncHandler(async (req, res) => {
 
 // @desc    Add a new keyword
 // @route   POST /api/keywords
-// @access  Private (Admin, Team Lead, Developer)
+// @access  Private (Admin, Lead Generation Specialist, Developer)
 const addKeyword = asyncHandler(async (req, res) => {
   const { keywordText, category } = req.body;
 
@@ -66,7 +66,7 @@ const addKeyword = asyncHandler(async (req, res) => {
 
 // @desc    Update a keyword
 // @route   PUT /api/keywords/:id
-// @access  Private (Admin, Team Lead, Developer)
+// @access  Private (Admin, Lead Generation Specialist, Developer)
 const updateKeyword = asyncHandler(async (req, res) => {
   // req.resource is attached by checkCompanyOwnership middleware
   const keyword = req.resource;
@@ -82,7 +82,7 @@ const updateKeyword = asyncHandler(async (req, res) => {
 
 // @desc    Delete a keyword
 // @route   DELETE /api/keywords/:id
-// @access  Private (Admin, Team Lead)
+// @access  Private (Admin, Lead Generation Specialist)
 const deleteKeyword = asyncHandler(async (req, res) => {
   // req.resource is attached by checkCompanyOwnership middleware
   const keyword = req.resource;

@@ -36,14 +36,14 @@ router.param('id', (req, res, next, id) => {
 
 router.route('/')
   .get(protect, getRecipientLists)
-  .post(protect, authorize('Admin', 'Team Lead', 'Developer'), createRecipientList);
+  .post(protect, authorize('Admin', 'Lead Generation Specialist', 'Developer'), createRecipientList);
 
 router.route('/:id')
   .get(protect, checkCompanyOwnership, getRecipientList)
-  .put(protect, authorize('Admin', 'Team Lead', 'Developer'), checkCompanyOwnership, updateRecipientList)
-  .delete(protect, authorize('Admin', 'Team Lead'), checkCompanyOwnership, deleteRecipientList);
+  .put(protect, authorize('Admin', 'Lead Generation Specialist', 'Developer'), checkCompanyOwnership, updateRecipientList)
+  .delete(protect, authorize('Admin', 'Lead Generation Specialist'), checkCompanyOwnership, deleteRecipientList);
 
-router.post('/:id/import-contacts', protect, authorize('Admin', 'Team Lead', 'Developer'), upload.single('contactsCsv'), checkCompanyOwnership, importContactsToList);
+router.post('/:id/import-contacts', protect, authorize('Admin', 'Lead Generation Specialist', 'Developer'), upload.single('contactsCsv'), checkCompanyOwnership, importContactsToList);
 
 
 module.exports = router;

@@ -28,11 +28,12 @@ const CampaignSchema = mongoose.Schema(
       ref: 'EmailTemplate',
       required: true,
     },
-    recipientListIds: [{ // A campaign can target multiple lists
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'RecipientList',
-      required: true,
-    }],
+    extractionJobIds: [ // Changed from extractionJobId to extractionJobIds (plural)
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ExtractionJob',
+      }
+    ],
     scheduleType: {
       type: String,
       enum: ['Send Now', 'Schedule'],
@@ -44,7 +45,7 @@ const CampaignSchema = mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Draft', 'Scheduled', 'Active', 'Paused', 'Completed', 'Failed', 'Cancelled'],
+      enum: ['Draft', 'Immediate', 'Scheduled', 'Active', 'Paused', 'Completed', 'Failed', 'Cancelled'],
       default: 'Draft',
     },
     createdBy: {

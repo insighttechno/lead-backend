@@ -7,6 +7,12 @@ const ExtractionJobSchema = mongoose.Schema(
       ref: 'Company',
       required: true,
     },
+    title: { 
+      type: String,
+      required: [true, 'Extraction job title is required'],
+      trim: true,
+      maxlength: [100, 'Title cannot be more than 100 characters'],
+    },
     keywordsUsed: {
       type: [String],
       required: [true, 'Keywords for extraction are required'],

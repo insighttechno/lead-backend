@@ -55,7 +55,7 @@ const getRecipientList = asyncHandler(async (req, res) => {
 
 // @desc    Create new recipient list (manual input of contacts)
 // @route   POST /api/recipient-lists
-// @access  Private (Admin, Team Lead, Developer)
+// @access  Private (Admin, Lead Generation Specialist, Developer)
 const createRecipientList = asyncHandler(async (req, res) => {
   const { listName, description, contacts } = req.body; // contacts as [{ email, firstName, lastName }]
 
@@ -128,7 +128,7 @@ const createRecipientList = asyncHandler(async (req, res) => {
 
 // @desc    Update recipient list details
 // @route   PUT /api/recipient-lists/:id
-// @access  Private (Admin, Team Lead, Developer)
+// @access  Private (Admin, Lead Generation Specialist, Developer)
 const updateRecipientList = asyncHandler(async (req, res) => {
   // req.resource is attached by checkCompanyOwnership middleware
   const list = req.resource;
@@ -151,7 +151,7 @@ const updateRecipientList = asyncHandler(async (req, res) => {
 
 // @desc    Delete recipient list
 // @route   DELETE /api/recipient-lists/:id
-// @access  Private (Admin, Team Lead)
+// @access  Private (Admin, Lead Generation Specialist)
 const deleteRecipientList = asyncHandler(async (req, res) => {
   // req.resource is attached by checkCompanyOwnership middleware
   const list = req.resource;
@@ -169,7 +169,7 @@ const deleteRecipientList = asyncHandler(async (req, res) => {
 
 // @desc    Import contacts into a recipient list from CSV
 // @route   POST /api/recipient-lists/:id/import-contacts
-// @access  Private (Admin, Team Lead, Developer)
+// @access  Private (Admin, Lead Generation Specialist, Developer)
 const importContactsToList = asyncHandler(async (req, res) => {
   if (!req.file) {
     res.status(400);

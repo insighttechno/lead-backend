@@ -29,11 +29,11 @@ router.param('id', (req, res, next, id) => {
 });
 
 router.route('/')
-  .get(protect, authorize('Admin', 'Team Lead'), getTeamMembers)
-  .post(protect, authorize('Admin', 'Team Lead'), addTeamMember);
+  .get(protect, authorize('Admin', 'Lead Generation Specialist'), getTeamMembers)
+  .post(protect, authorize('Admin', 'Lead Generation Specialist'), addTeamMember);
 
 router.route('/:id')
-  .put(protect, authorize('Admin', 'Team Lead'), checkCompanyOwnership, updateTeamMember)
+  .put(protect, authorize('Admin', 'Lead Generation Specialist'), checkCompanyOwnership, updateTeamMember)
   .delete(protect, authorize('Admin'), checkCompanyOwnership, deleteTeamMember); // Only Admin can delete
 
 module.exports = router;
