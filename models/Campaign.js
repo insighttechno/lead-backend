@@ -13,11 +13,6 @@ const CampaignSchema = mongoose.Schema(
       trim: true,
       unique: true, // Unique per company
     },
-    subjectLine: {
-      type: String,
-      required: [true, 'Subject line is required'],
-      trim: true,
-    },
     templateIds: [
       {
         type: mongoose.Schema.Types.ObjectId,

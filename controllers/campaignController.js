@@ -120,9 +120,9 @@ const getCampaign = asyncHandler(async (req, res) => {
 // @route   POST /api/campaigns
 // @access  Private (Admin, Lead Generation Specialist, Senior Developer)
 const createCampaign = asyncHandler(async (req, res) => {
-  const { campaignName, subjectLine, templateIds, extractionJobIds, scheduleType, scheduledTime, status } = req.body;
+  const { campaignName, templateIds, extractionJobIds, scheduleType, scheduledTime, status } = req.body;
 
-  if (!campaignName || !subjectLine || !templateIds || !Array.isArray(templateIds) || templateIds.length === 0 || !extractionJobIds || !Array.isArray(extractionJobIds) || extractionJobIds.length === 0) {
+  if (!campaignName || !templateIds || !Array.isArray(templateIds) || templateIds.length === 0 || !extractionJobIds || !Array.isArray(extractionJobIds) || extractionJobIds.length === 0) {
     res.status(400);
     throw new Error('Please fill all required campaign fields.');
   }
@@ -150,7 +150,6 @@ const createCampaign = asyncHandler(async (req, res) => {
   const newCampaign = await Campaign.create({
     companyId: req.companyId,
     campaignName,
-    subjectLine,
     templateIds,
     extractionJobIds,
     scheduleType,
@@ -169,7 +168,7 @@ const createCampaign = asyncHandler(async (req, res) => {
 const updateCampaign = asyncHandler(async (req, res) => {
   // req.resource is attached by checkCompanyOwnership middleware
   const campaign = req.resource;
-  const { campaignName, subjectLine, templateIds, extractionJobIds, scheduleType, scheduledTime, status } = req.body;
+  const { campaignName, templateIds, extractionJobIds, scheduleType, scheduledTime, status } = req.body;
 
   // Prevent updates if campaign is already active/completed/failed
   if (['Active', 'Completed', 'Failed'].includes(campaign.status)) {
@@ -178,7 +177,6 @@ const updateCampaign = asyncHandler(async (req, res) => {
   }
 
   if (campaignName) campaign.campaignName = campaignName;
-  if (subjectLine) campaign.subjectLine = subjectLine;
 
    if (templateIds) { // Handle templateIds update
     if (!Array.isArray(templateIds) || templateIds.length === 0) {
@@ -336,7 +334,7 @@ const sendCampaign = asyncHandler(async (req, res) => {
         campaignId: campaign._id,
         companyId: campaign.companyId,
         recipientEmail: email,
-        subject: campaign.subjectLine,
+        subject: randomTemplate.subject,
         body: randomTemplate.contentHtml,
         templateId: randomTemplate._id,
       },

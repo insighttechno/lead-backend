@@ -26,7 +26,7 @@ const getTemplates = asyncHandler(async (req, res) => {
     .skip((page - 1) * limit)
     .sort({ createdAt: -1 })
     // Project only necessary fields and a short preview of contentHtml
-    .select('templateType templateName status createdAt contentHtml'); // Keep contentHtml for full view later
+    .select('templateType subject templateName status createdAt contentHtml'); // Keep contentHtml for full view later
 
   const count = await EmailTemplate.countDocuments(query);
 
@@ -56,9 +56,9 @@ const getTemplate = asyncHandler(async (req, res) => {
 // @route   POST /api/templates
 // @access  Private
 const createTemplate = asyncHandler(async (req, res) => {
-  const { templateType, templateName, contentHtml, status } = req.body;
+  const { templateType, templateName, contentHtml, status, subject } = req.body;
 
-  if (!templateType || !templateName || !contentHtml) {
+  if (!templateType || !templateName || !subject || !contentHtml) {
     res.status(400);
     throw new Error('Please fill all required fields: template type, name, and content');
   }
@@ -67,6 +67,7 @@ const createTemplate = asyncHandler(async (req, res) => {
     companyId: req.companyId,
     templateType,
     templateName,
+    subject,
     contentHtml,
     status,
     createdBy: req.user._id,
@@ -81,10 +82,11 @@ const createTemplate = asyncHandler(async (req, res) => {
 const updateTemplate = asyncHandler(async (req, res) => {
   // req.resource is attached by checkCompanyOwnership middleware
   const template = req.resource;
-  const { templateType, templateName, contentHtml, status } = req.body;
+  const { templateType, templateName, subject, contentHtml, status } = req.body;
 
   template.templateType = templateType || template.templateType;
   template.templateName = templateName || template.templateName;
+  template.subject = subject || template.subject;
   template.contentHtml = contentHtml || template.contentHtml;
   template.status = status || template.status;
 

@@ -16,6 +16,10 @@ const EmailTemplateSchema = mongoose.Schema(
       required: [true, 'Please add a template name'],
       unique: true, // Unique within a company (handled by index)
     },
+    subject: {
+      type: String,
+      required: [true, 'Please add a subject line for the template'],
+    },
     contentHtml: {
       type: String,
       required: [true, 'Please add HTML content for the template'],
