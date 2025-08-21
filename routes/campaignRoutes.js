@@ -11,6 +11,7 @@ const {
   resumeCampaign,
   cancelCampaign,
   getCampaignAnalytics,
+  getCampaignEvents,
   getCampaignRecipientActivity
 } = require('../controllers/campaignController');
 const { protect, authorize, checkCompanyOwnership } = require('../middleware/authMiddleware');
@@ -42,6 +43,7 @@ router.post('/:id/cancel', protect, authorize('Admin', 'Lead Generation Speciali
 
 // New Reporting Routes for Campaigns
 router.get('/:id/analytics', protect, checkCompanyOwnership, getCampaignAnalytics); // NEW
+router.get('/:id/events', protect, checkCompanyOwnership, getCampaignEvents); // NEW
 router.get('/:id/recipients-activity', protect, checkCompanyOwnership, getCampaignRecipientActivity); // NEW
 
 module.exports = router;

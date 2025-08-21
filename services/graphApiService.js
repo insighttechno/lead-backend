@@ -106,15 +106,16 @@ async function sendEmailViaGraph(campaignId, toEmailAddress, subject, body, comp
                 campaignId,
                 fromEmail: fromEmailAddress,
                 recipientEmail: toEmailAddress,
-                eventType: 'sent',
+                emailContent: finalBody,
+                eventType: 'Sent',
                 templateId,
-                errorMessage: error.message,
+                // errorMessage: error.message,
                 timestamp: new Date(),
             });
             await newCampaignEvent.save();
             console.log('Email send logged successfully.');
         } catch (logError) {
-            console.error('Failed to log email send:', logError.message);
+            console.error('Failed to log email send:', logError);
             // Don't re-throw, as the email was successfully sent.
         }
 
@@ -139,7 +140,8 @@ async function sendEmailViaGraph(campaignId, toEmailAddress, subject, body, comp
                 recipientEmail: toEmailAddress,
                 eventType: 'Failed',
                 templateId,
-                errorMessage: error.message,
+                emailContent: finalBody,
+                // errorMessage: error.message,
                 timestamp: new Date(),
             });
             await newCampaignEvent.save();

@@ -32,6 +32,10 @@ const CampaignEventSchema = mongoose.Schema(
         type: String,
         required: true,
     },
+    emailContent: {
+        type: String,
+        required: true,
+    },
     timestamp: {
       type: Date,
       default: Date.now,

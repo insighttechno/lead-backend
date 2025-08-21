@@ -1,15 +1,32 @@
 const { getJson } = require("serpapi");
-require('dotenv').config(); // Load environment variables from .env file
-const Company = require('../models/Company'); // 1. Import the Company model
+require("dotenv").config(); // Load environment variables from .env file
+const Company = require("../models/Company"); // 1. Import the Company model
 
 const emailRegex = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 
+const skipKeywords = [
+  "support",
+  "help",
+  "helpdesk",
+  "customer",
+  "inquiry",
+  "enquiry",
+  "enquiries",
+  "inquiries",
+  "example",
+  "domain",
+  "privacy",
+  "hi",
+  "hr",
+  "reception",
+  "recuite",
+];
+
 async function getEmailsFromSerpAPI(keyword, companyId) {
-  
-  const company = await Company.findById(companyId); 
-  
+  const company = await Company.findById(companyId);
+
   if (!company || !company.apiSettings || !company.apiSettings.apiKey) {
-    throw new Error('Company not found or API key is missing.');
+    throw new Error("Company not found or API key is missing.");
   }
 
   const serpApiKey = company.apiSettings.apiKey;
@@ -34,12 +51,24 @@ async function getEmailsFromSerpAPI(keyword, companyId) {
       );
 
       if (!data.organic_results?.length) break;
-      
+
       data.organic_results.forEach((result) => {
         const snippet = result.snippet || "";
         const foundEmails = snippet.match(emailRegex) || [];
         foundEmails.forEach((email) => {
-          if (!emailObjects.has(email)) {
+          const localPart = email.split('@')[0].toLowerCase();
+          
+          // Check for phone number pattern
+          if (/\d{3}-\d{3}-\d{4}/.test(localPart)) {
+            return; // Skip this email
+          }
+
+          // Check against the skip keywords
+          const shouldSkip = skipKeywords.some(keyword => 
+            localPart.includes(keyword) || localPart === keyword
+          );
+
+          if (!shouldSkip && !emailObjects.has(email)) {
             emailObjects.set(email, {
               email,
               rawSource: result, // Only the specific block where email was found
@@ -58,6 +87,6 @@ async function getEmailsFromSerpAPI(keyword, companyId) {
   return {
     emails: Array.from(emailObjects.values()), // [{ email, rawSource }, ...]
   };
-};
+}
 
 module.exports = { getEmailsFromSerpAPI };

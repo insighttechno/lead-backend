@@ -4,6 +4,7 @@ const Lead = require('../models/Lead');
 const EmailTemplate = require('../models/EmailTemplate');
 const ExtractionJob = require('../models/ExtractionJob'); // Make sure this is imported
 const CampaignEvent = require('../models/CampaignEvent');
+const mongoose = require('mongoose'); // Add this import
 
 // Import the emailSendingQueue
 const { emailSendingQueue } = require('../config/redis');
@@ -493,6 +494,45 @@ const getCampaignRecipientActivity = asyncHandler(async (req, res) => {
     });
 });
 
+// @desc    Get all events for a specific campaign
+// @route   GET /api/campaigns/:campaignId/events
+// @access  Private
+const getCampaignEvents = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { eventType, search, page = 1, limit = 10 } = req.query;
+    
+    // Validate that the campaignId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ message: 'Invalid campaign ID.' });
+    }
+
+    const query = { campaignId: new mongoose.Types.ObjectId(id) };
+
+    // Add search and eventType filters
+    if (search) {
+        query.recipientEmail = { $regex: search, $options: 'i' };
+    }
+    if (eventType) {
+        query.eventType = eventType;
+    }
+
+    // Fetch events with pagination and sorting
+    const events = await CampaignEvent.find(query)
+        .limit(limit * 1)
+        .skip((page - 1) * limit)
+        .sort({ timestamp: -1 });
+
+    // Get the total count of events for pagination metadata
+    const count = await CampaignEvent.countDocuments(query);
+
+    res.json({
+        events,
+        totalPages: Math.ceil(count / limit),
+        currentPage: page,
+        totalEvents: count,
+    });
+});
+
 module.exports = {
   getCampaignSummary,
   getCampaigns,
@@ -506,4 +546,5 @@ module.exports = {
   cancelCampaign,
   getCampaignAnalytics, // NEW
   getCampaignRecipientActivity, // NEW
+  getCampaignEvents
 };
